@@ -328,7 +328,7 @@ const TITULO_PADRAO = 'Curso Teológico';
 const PALAVRAS_PADRAO = 'sem som, sem áudio, sem imagem, travando, travou, trava, caiu, parou, não aparece, tela preta, chiado, eco, atrasado, atraso, som baixo, cortando, picotando, não carrega';
 const QUOTA_DIA = 10000, CUSTO_CHAT = 5;
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
-const YT = 'https://www.googleapis.com/youtube/v3';
+const YT_API = 'https://www.googleapis.com/youtube/v3';
 
 const LS = {
   get(k,d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
@@ -853,7 +853,7 @@ async function enviarMensagem(){
   msg.className = 'hint'; msg.textContent = 'Enviando…';
   try{
     await pedirToken();
-    await gd(`${YT}/liveChatMessages?part=snippet`, {
+    await gd(`${YT_API}/liveChatMessages?part=snippet`, {
       method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ snippet:{ liveChatId:e.chatId, type:'textMessageEvent', textMessageDetails:{ messageText: txt } } })
     });
