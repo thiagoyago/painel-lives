@@ -110,6 +110,7 @@ details ol{padding-left:20px;margin:8px 0;color:var(--muted);font-size:15px}
 .ouvir .info{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:14px;white-space:nowrap}
 .ouvir .curtidas{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:14px;white-space:nowrap}
 .ouvir .info svg,.ouvir .curtidas svg{width:15px;height:15px;flex-shrink:0}
+.ouvir .info .ep{margin-right:8px;opacity:.85}
 .ouvir .alertas{color:var(--alert);font-weight:700;font-size:14px;white-space:nowrap}
 .ouvir svg.som{width:20px;height:20px;flex-shrink:0;color:var(--muted);margin-left:6px}
 .tile.ativo .ouvir svg.som{color:var(--c)}
@@ -616,12 +617,19 @@ let listaPalavras = [];
 const ICON_ON = '<svg class="som" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>';
 const ICON_OFF = '<svg class="som" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/></svg>';
 
+let ytPromise = null;
 function carregarYT(){
-  return new Promise(res => {
-    if (window.YT && YT.Player) return res();
+  if (window.YT && YT.Player) return Promise.resolve();
+  if (ytPromise) return ytPromise;
+  ytPromise = new Promise((res, rej) => {
     window.onYouTubeIframeAPIReady = res;
-    const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    s.onerror = () => { ytPromise = null; rej(new Error('O player do YouTube não carregou. Se você usa bloqueador de anúncios, libere este site.')); };
+    document.head.appendChild(s);
+    setTimeout(() => { if (!(window.YT && YT.Player)){ ytPromise = null; rej(new Error('O player do YouTube demorou demais para carregar. Recarregue a página.')); } }, 15000);
   });
+  return ytPromise;
 }
 function mostrarTela(id){ ['#setup','#painel','#historico'].forEach(s => $(s).classList.toggle('hidden', s !== id)); window.scrollTo(0,0); }
 
@@ -659,7 +667,8 @@ async function abrirPainel(c){
     mostrarEmbed(estado.findIndex(e => e.id));
   }
 
-  await carregarYT();
+  try{ await carregarYT(); }
+  catch(err){ if (atual === c) avisoVideo(err.message); return; }
   if (atual !== c) return;
   players = estado.map((e,i) => {
     if (!e.id) return null;
@@ -677,6 +686,17 @@ async function abrirPainel(c){
       }
     });
   });
+  // se em 10s nenhum vídeo virou player de verdade, algo bloqueou o YouTube
+  setTimeout(() => {
+    if (atual !== c) return;
+    const comLink = estado.filter(e => e.id);
+    if (comLink.length && comLink.every(e => { const el = document.getElementById('p'+e.i); return !el || el.tagName !== 'IFRAME'; }))
+      avisoVideo('Os vídeos não carregaram. Se você usa bloqueador de anúncios no Safari, libere este site e recarregue a página.');
+  }, 10000);
+}
+function avisoVideo(txt){
+  const el = $('#pDrive');
+  el.className = 'aviso-drive err'; el.textContent = txt; el.classList.remove('hidden');
 }
 
 const ICON_OLHO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -697,8 +717,9 @@ function montarTiles(){
 function atualizarTile(i){
   const e = estado[i], t = $('#tile'+i); if (!t) return;
   const elInfo = t.querySelector('.info');
-  if (e.viewers != null) elInfo.innerHTML = `${ICON_OLHO}<span>${Number(e.viewers).toLocaleString('pt-BR')}</span>`;
-  else elInfo.textContent = e.estadoPlayer || '';
+  const ep = (e.estadoPlayer && e.estadoPlayer !== 'rodando') ? `<span class="ep">${e.estadoPlayer}</span>` : '';
+  if (e.viewers != null) elInfo.innerHTML = `${ep}${ICON_OLHO}<span>${Number(e.viewers).toLocaleString('pt-BR')}</span>`;
+  else elInfo.innerHTML = ep;
   const elLikes = t.querySelector('.curtidas');
   if (e.curtidas != null) elLikes.innerHTML = `${ICON_JOIA}<span>${Number(e.curtidas).toLocaleString('pt-BR')}</span>`;
   else elLikes.textContent = '';
