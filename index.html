@@ -87,8 +87,12 @@ details ol{padding-left:20px;margin:8px 0;color:var(--muted);font-size:15px}
 .aviso-drive.err{color:var(--alert)}
 .aviso-drive a{color:var(--navy2)}
 
-.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px}
-.tile{background:var(--panel);border:2px solid var(--line);border-radius:var(--r-md);overflow:hidden;transition:border-color .15s}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px;background:#000}
+.tile{background:#0C0E11;border:2px solid #262A31;border-radius:var(--r-md);overflow:hidden;transition:border-color .15s}
+.tile .ouvir{color:#EDF1F6}
+.tile .ouvir .info{color:#93A2B4}
+.tile .ouvir .alertas{color:#FF7063}
+.tile .ouvir svg{color:#93A2B4}
 .tile.ativo{border-color:var(--c);box-shadow:0 0 0 1px var(--c)}
 .frame{position:relative;aspect-ratio:16/9;background:#000}
 .frame iframe,.frame > div{position:absolute;inset:0;width:100%;height:100%;border:0}
@@ -340,7 +344,7 @@ function montarFormLives(dados){
     div.className = 'live-in'; div.style.setProperty('--c', COR[i]);
     div.innerHTML = `
       <div class="row">
-        <div><label for="fNome${i}">Nome</label><input type="text" id="fNome${i}" placeholder="Live ${i+1}"></div>
+        <div><label for="fNome${i}">Nome</label><input type="text" id="fNome${i}" placeholder="Ciclo ${i+1}"></div>
         <div><label for="fLink${i}">Link da live</label><input type="text" id="fLink${i}" inputmode="url" placeholder="https://youtube.com/live/..."></div>
       </div>
       <p class="hint" id="fHint${i}"></p>`;
@@ -363,7 +367,7 @@ function lerForm(){
     id: editandoId || String(Date.now()),
     data: $('#fData').value || hojeISO(),
     titulo: $('#fTitulo').value.trim() || 'Culto',
-    lives: [0,1,2].map(i => ({ nome: $('#fNome'+i).value.trim() || `Live ${i+1}`, link: $('#fLink'+i).value.trim() }))
+    lives: [0,1,2].map(i => ({ nome: $('#fNome'+i).value.trim() || `Ciclo ${i+1}`, link: $('#fLink'+i).value.trim() }))
   });
 }
 function salvarCulto(){
@@ -563,7 +567,7 @@ $('#btnTestarDrive').onclick = () => {
 
 /* ================= painel ao vivo ================= */
 let atual = null, players = [], estado = [], audioAtivo = -1, filtro = 'todas';
-let timersDetalhes = null, wakeLock = null, modoChat = 'api', embedAtivo = 0;
+let timersDetalhes = null, wakeLock = null, modoChat = 'api', embedAtivo = 0, vigia = null;
 const vistos = new Set();
 let listaPalavras = [];
 
@@ -595,6 +599,7 @@ async function abrirPainel(c){
   chatAtual.forEach(m => { vistos.add(m.id); if (estado[m.l]){ estado[m.l].total++; if (m.al) estado[m.l].alertas++; } });
 
   montarTiles();
+  clearInterval(vigia); vigia = setInterval(vigiarPlayers, 5000);
   pedirWakeLock();
   if (cfg.clientId) carregarGIS().catch(()=>{});
 
@@ -620,7 +625,12 @@ async function abrirPainel(c){
       playerVars: { autoplay:1, mute:1, playsinline:1, rel:0, modestbranding:1 },
       events: {
         onReady: ev => { ev.target.mute(); ev.target.playVideo(); },
-        onStateChange: ev => { e.estadoPlayer = ({'-1':'iniciando','0':'encerrada','1':'rodando','2':'pausada','3':'carregando','5':'pronta'})[ev.data] || ''; atualizarTile(i); }
+        onStateChange: ev => {
+          e.estadoPlayer = ({'-1':'iniciando','0':'encerrada','1':'rodando','2':'pausada','3':'carregando','5':'pronta'})[ev.data] || '';
+          atualizarTile(i);
+          // o iOS pausa os outros vídeos quando um passa a tocar com som: religa os mudos
+          if (ev.data === 2 && i !== audioAtivo){ setTimeout(vigiarPlayers, 300); setTimeout(vigiarPlayers, 1200); }
+        }
       }
     });
   });
@@ -653,21 +663,42 @@ function atualizarTile(i){
   btn.setAttribute('aria-label', ativo ? `Ouvindo ${e.nome}` : `Ouvir ${e.nome}`);
   btn.querySelector('svg').outerHTML = ativo ? ICON_ON : ICON_OFF;
 }
-function ouvir(i){
-  audioAtivo = (audioAtivo === i) ? -1 : i;
+// Mantém os vídeos sem áudio sempre rodando. O iOS pausa os outros quando um
+// deles ganha som; como os demais ficam mudos, podem voltar a tocar sozinhos.
+function vigiarPlayers(){
+  if (!atual || !players.length) return;
   players.forEach((p,j) => {
-    if (!p || !p.mute) return;
-    if (j === audioAtivo){ p.unMute(); p.setVolume(100); p.playVideo(); }
-    else p.mute();
+    if (!p || !p.getPlayerState || j === audioAtivo) return;
+    try{
+      if (p.getPlayerState() === 2){ p.mute(); p.playVideo(); }
+    }catch(err){}
   });
-  estado.forEach((_,j) => atualizarTile(j));
 }
-$('#btnMudo').onclick = () => { audioAtivo = -1; players.forEach(p => p && p.mute && p.mute()); estado.forEach((_,j) => atualizarTile(j)); };
+function ouvir(i){
+  const novo = (audioAtivo === i) ? -1 : i;
+  audioAtivo = novo;
+  // primeiro cala os outros, depois liga o som do escolhido (sem atraso,
+  // senão o iOS entende que não partiu de um toque e recusa o áudio)
+  players.forEach((p,j) => { if (p && p.mute && j !== novo){ try{ p.mute(); }catch(err){} } });
+  if (novo >= 0){
+    const p = players[novo];
+    try{ p.unMute(); p.setVolume(100); p.playVideo(); }catch(err){}
+  }
+  estado.forEach((_,j) => atualizarTile(j));
+  setTimeout(vigiarPlayers, 400); setTimeout(vigiarPlayers, 1200); setTimeout(vigiarPlayers, 2500);
+}
+$('#btnMudo').onclick = () => {
+  audioAtivo = -1;
+  players.forEach(p => p && p.mute && p.mute());
+  estado.forEach((_,j) => atualizarTile(j));
+  setTimeout(vigiarPlayers, 400);
+};
 
 function pararPainel(){
   gravarChat();
   estado.forEach(e => clearTimeout(e.timer));
   clearTimeout(timersDetalhes);
+  clearInterval(vigia); vigia = null;
   players.forEach(p => { try{ p && p.destroy && p.destroy(); }catch(err){} });
   players = [];
   if (wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
