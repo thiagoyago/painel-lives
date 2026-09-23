@@ -21,8 +21,8 @@
   --r-sm:6px; --r-md:10px;
   --font:"Barlow Semi Condensed","Segoe UI",Roboto,-apple-system,system-ui,sans-serif;
   --marca:"Montserrat","Segoe UI",Roboto,-apple-system,system-ui,sans-serif;
+  --topo:0px;
   box-sizing:border-box;
-  padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
 *,*::before,*::after{box-sizing:inherit}
@@ -34,7 +34,7 @@ button{cursor:pointer}
 .hidden{display:none!important}
 
 /* ---------- Configuração ---------- */
-#setup{max-width:none;margin:0 auto;padding:18px clamp(14px,3vw,36px) 48px}
+#setup{max-width:none;margin:0 auto;padding:calc(18px + var(--topo)) clamp(14px,3vw,36px) 48px}
 .cab{display:flex;align-items:center;gap:16px;margin:4px 0 22px}
 .cab img{width:64px;height:auto;flex-shrink:0}
 .cab h1{font-family:var(--marca);font-size:24px;font-weight:700;margin:0;color:var(--navy);letter-spacing:-.01em}
@@ -83,7 +83,7 @@ details ol{padding-left:20px;margin:8px 0;color:var(--muted);font-size:15px}
 
 /* ---------- Painel e histórico ---------- */
 .tela{display:flex;flex-direction:column;height:100%}
-.topbar{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+.topbar{display:flex;align-items:center;gap:10px;padding:calc(8px + var(--topo)) 10px 8px;border-bottom:1px solid var(--line);background:var(--bg)}
 .topbar img{height:34px;width:auto;flex-shrink:0}
 .topbar .marca-top{font-family:var(--marca);font-weight:700;font-size:16px;letter-spacing:-.01em;white-space:nowrap;padding-right:10px;border-right:1px solid var(--line)}
 .topbar .assina{font-family:var(--font);font-weight:500;font-size:.9em;letter-spacing:.02em}
@@ -175,10 +175,12 @@ details ol{padding-left:20px;margin:8px 0;color:var(--muted);font-size:15px}
   #painel .corpo .chat{margin:0;min-height:0}
 }
 /* Aberto pelo ícone da Tela de Início, a barra de status do iPad fica por cima da página */
+/* Pelo ícone da Tela de Início a barra de status fica por cima: o cabeçalho
+   cresce para trás dela, como nos aplicativos do iPad, sem faixa preta. */
 @media (display-mode:standalone),(display-mode:fullscreen){
-  :root{padding-top:max(env(safe-area-inset-top,0px),34px)}
+  :root{--topo:max(env(safe-area-inset-top,0px),22px)}
 }
-html.app{padding-top:max(env(safe-area-inset-top,0px),34px)}
+html.app{--topo:max(env(safe-area-inset-top,0px),22px)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
